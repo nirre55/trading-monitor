@@ -9,6 +9,22 @@ TIMEFRAME = "1m"            # Timeframe (1m, 3m, 5m, 15m, 30m, 1h, etc.)
 # Périodes RSI à calculer
 RSI_PERIODS = [14, 21]
 
+# NOUVEAU: Configuration EMA sur timeframe supérieur
+EMA_HIGHER_TIMEFRAME = {
+    'ENABLED': True,                    # Activer/désactiver les EMA timeframe supérieur
+    'PERIODS': [20, 50],               # Périodes EMA à calculer
+    'CUSTOM_TIMEFRAME': None,          # Forcer un timeframe spécifique (None = auto)
+    'AUTO_SUGGESTIONS': {              # Suggestions automatiques de timeframes
+        '1m': '5m',
+        '3m': '15m', 
+        '5m': '30m',
+        '15m': '1h',
+        '30m': '4h',
+        '1h': '4h',
+        '4h': '1d'
+    }
+}
+
 # Configuration WebSocket
 WEBSOCKET_URL = "wss://stream.binance.com:9443/ws/"
 
