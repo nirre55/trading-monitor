@@ -10,7 +10,8 @@ import os
 
 # Ajouter core au path pour import
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core'))
-from timeframe_manager import TimeframeManager
+from core.timeframe_manager import TimeframeManager
+from typing import Dict, Optional, Union, Any
 
 class IndicatorCalculator:
     """Orchestrateur des calculs d'indicateurs techniques"""

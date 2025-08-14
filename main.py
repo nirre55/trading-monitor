@@ -77,8 +77,12 @@ class CandleMonitor:
             if df.empty:
                 return
             
-            # Calculer tous les indicateurs
-            indicators_data = self.calculator.calculate_all_indicators(df)
+            # Calculer tous les indicateurs avec support multi-timeframes
+            indicators_data = self.calculator.calculate_all_indicators(
+                df, 
+                symbol=config.SYMBOL, 
+                base_timeframe=config.TIMEFRAME
+            )
             
             # Afficher les résultats
             if not config.DISPLAY_CONFIG['COMPACT_MODE']:

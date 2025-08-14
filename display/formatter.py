@@ -4,6 +4,7 @@ Formatage des données pour l'affichage
 import numpy as np
 from datetime import datetime
 import config
+from typing import Dict, Optional, Union, Any
 
 class DataFormatter:
     """Formateur des données pour affichage"""

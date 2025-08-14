@@ -5,6 +5,7 @@ Permet de récupérer et synchroniser des données de différents timeframes
 import pandas as pd
 from datetime import datetime, timedelta
 from .binance_client import BinanceClient
+from typing import Dict, Optional, Union, Any
 
 class TimeframeManager:
     """Gestionnaire des données multi-timeframes"""

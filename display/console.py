@@ -31,7 +31,7 @@ class ConsoleDisplay:
         bold = self.formatter.get_color_code('bold')
         reset = self.formatter.get_color_code('reset')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             title = f"{cyan}{bold}=== MONITORING {symbol} - {timeframe.upper()} ==={reset}"
         else:
             title = f"=== MONITORING {symbol} - {timeframe.upper()} ==="
@@ -47,7 +47,7 @@ class ConsoleDisplay:
             indicators_data: Données des indicateurs calculés
         """
         if not indicators_data['has_data']:
-            message = indicators_data.get('message', 'Données insuffisantes')
+            message = indicators_data.get('message', 'Données insuffisantes') if indicators_data else 'Données insuffisantes'
             print(f"⚠️ {message}")
             return
         
@@ -63,6 +63,10 @@ class ConsoleDisplay:
         # Affichage des RSI
         if config.DISPLAY_CONFIG['SHOW_RSI_VALUES']:
             self._display_rsi_values(indicators_data)
+        
+        # NOUVEAU: Affichage EMA timeframe supérieur
+        if indicators_data.get('higher_tf_ema') and indicators_data['higher_tf_ema']:
+            self._display_higher_timeframe_ema(indicators_data['higher_tf_ema'])
         
         print(config.SYMBOLS['SEPARATOR'])
         print()
@@ -101,7 +105,7 @@ class ConsoleDisplay:
         color_code = self.formatter.get_color_code(candle_data['color'])
         reset_code = self.formatter.get_color_code('reset')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             print(f"{symbol} {candle_type}: {color_code}{color}{reset_code} @ {close_price}")
         else:
             print(f"{symbol} {candle_type}: {color} @ {close_price}")
@@ -121,7 +125,7 @@ class ConsoleDisplay:
             normal_classifications = self._get_rsi_classifications(normal_rsi)
             
             for rsi_name, rsi_value in normal_rsi.items():
-                classification = normal_classifications.get(rsi_name, 'neutral')
+                classification = normal_classifications.get(rsi_name, 'neutral') if normal_classifications else 'neutral'
                 formatted_rsi = self.formatter.format_rsi_with_level(
                     rsi_name, rsi_value, classification
                 )
@@ -137,7 +141,7 @@ class ConsoleDisplay:
             ha_classifications = self._get_rsi_classifications(ha_rsi)
             
             for rsi_name, rsi_value in ha_rsi.items():
-                classification = ha_classifications.get(rsi_name, 'neutral')
+                classification = ha_classifications.get(rsi_name, 'neutral') if ha_classifications else 'neutral'
                 formatted_rsi = self.formatter.format_rsi_with_level(
                     rsi_name, rsi_value, classification
                 )
@@ -157,6 +161,126 @@ class ConsoleDisplay:
             classifications[rsi_name] = RSI.classify_rsi_level(rsi_value)
         
         return classifications
+        
+    def _display_higher_timeframe_ema(self, ema_data):
+        """Affiche les EMA du timeframe supérieur"""
+        print()
+        
+        # Vérification de sécurité pour éviter les erreurs Pylance
+        if not ema_data or not isinstance(ema_data, dict):
+            print("⚠️ Données EMA non disponibles")
+            return
+        
+        timeframe = ema_data.get('timeframe', 'N/A') if ema_data else 'N/A'
+        ema_values = ema_data.get('values', {}) if ema_data else {}
+        price_vs_ema = ema_data.get('price_vs_ema', {}) if ema_data else {}
+        ema_trends = ema_data.get('ema_trends', {}) if ema_data else {}
+        current_candle = ema_data.get('current_candle')
+        
+        # Vérifications supplémentaires
+        if not isinstance(ema_values, dict):
+            ema_values = {}
+        if not isinstance(price_vs_ema, dict):
+            price_vs_ema = {}
+        if not isinstance(ema_trends, dict):
+            ema_trends = {}
+        
+        # Titre avec timeframe
+        ema_symbol = "📊"
+        print(f"{ema_symbol} EMA Timeframe Supérieur ({timeframe.upper()}):")
+        
+        if current_candle and isinstance(current_candle, dict):
+            current_price = current_candle.get('close')
+            candle_time = current_candle.get('open_time')
+            
+            if current_price is not None:
+                formatted_time = self.formatter.format_timestamp(candle_time) if candle_time else 'N/A'
+                print(f"  📈 Prix actuel {timeframe}: {self.formatter.format_price(current_price, 2)} ({formatted_time})")
+        
+        print()
+        
+        # Afficher chaque EMA avec ses détails
+        for ema_name, ema_value in ema_values.items():
+            if ema_value is None:
+                print(f"  {ema_name}: N/A")
+                continue
+            
+            # Valeur EMA formatée
+            formatted_value = self.formatter.format_price(ema_value, 2)
+            
+            # Position prix vs EMA
+            position = price_vs_ema.get(ema_name, 'N/A') if price_vs_ema else 'N/A'
+            position_symbol = {
+                'above': '⬆️',
+                'below': '⬇️',
+                'equal': '➡️',
+                'N/A': '❓'
+            }.get(position, '❓')
+            
+            # Tendance EMA
+            trend = ema_trends.get(ema_name, 'N/A') if ema_trends else 'N/A'
+            trend_symbol = {
+                'rising': '📈',
+                'falling': '📉',
+                'sideways': '➡️',
+                'N/A': '❓'
+            }.get(trend, '❓')
+            
+            # Couleur selon la classification
+            classification = self._get_ema_classification(position, trend)
+            color_code = self._get_ema_color_code(classification)
+            reset_code = self.formatter.get_color_code('reset')
+            
+            # Affichage complet
+            if config.DISPLAY_CONFIG.get('USE_COLORS', False):
+                print(f"  {ema_name}: {color_code}{formatted_value}{reset_code} {position_symbol} {trend_symbol} ({classification})")
+            else:
+                print(f"  {ema_name}: {formatted_value} {position_symbol} {trend_symbol} ({classification})")
+    
+    def _get_ema_classification(self, position, trend):
+        """Détermine la classification EMA avec vérifications de sécurité"""
+        # Vérifications de type pour éviter les erreurs
+        if not isinstance(position, str):
+            position = 'N/A'
+        if not isinstance(trend, str):
+            trend = 'N/A'
+            
+        if position == 'above' and trend == 'rising':
+            return 'Haussier'
+        elif position == 'below' and trend == 'falling':
+            return 'Baissier'
+        elif position == 'above' and trend == 'falling':
+            return 'Résistance'
+        elif position == 'below' and trend == 'rising':
+            return 'Support'
+        elif trend == 'sideways':
+            return 'Neutre'
+        else:
+            return 'N/A'
+    
+    def _get_ema_color_code(self, classification):
+        """Retourne la couleur selon la classification EMA avec vérifications"""
+        # Vérification de sécurité pour DISPLAY_CONFIG
+        if not hasattr(config, 'DISPLAY_CONFIG') or not isinstance(config.DISPLAY_CONFIG, dict):
+            return ''
+            
+        if not config.DISPLAY_CONFIG.get('USE_COLORS', False):
+            return ''
+        
+        # Vérification que classification est une string
+        if not isinstance(classification, str):
+            classification = 'N/A'
+        
+        color_map = {
+            'Haussier': self.formatter.get_color_code('green'),
+            'Baissier': self.formatter.get_color_code('red'),
+            'Résistance': self.formatter.get_color_code('red'),
+            'Support': self.formatter.get_color_code('green'),
+            'Neutre': self.formatter.get_color_code('neutral'),
+            'N/A': self.formatter.get_color_code('neutral')
+        }
+        
+        return color_map.get(classification, '')
     
     def display_startup_info(self, symbol, timeframe):
         """
@@ -172,7 +296,7 @@ class ConsoleDisplay:
         bold = self.formatter.get_color_code('bold')
         reset = self.formatter.get_color_code('reset')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             title = f"{cyan}{bold}🚀 DÉMARRAGE MONITORING BOUGIES{reset}"
         else:
             title = "🚀 DÉMARRAGE MONITORING BOUGIES"
@@ -198,7 +322,7 @@ class ConsoleDisplay:
         red = self.formatter.get_color_code('red')
         yellow = self.formatter.get_color_code('yellow')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             print(f"🟢 {green}VERT{reset}: Bougie haussière (Close > Open)")
             print(f"🔴 {red}ROUGE{reset}: Bougie baissière (Close < Open)")
             print(f"🟡 {yellow}JAUNE{reset}: Doji (Close = Open)")
@@ -217,7 +341,7 @@ class ConsoleDisplay:
         red = self.formatter.get_color_code('red')
         reset = self.formatter.get_color_code('reset')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             print(f"{red}❌ {message}{reset}")
         else:
             print(f"❌ {message}")
@@ -227,7 +351,7 @@ class ConsoleDisplay:
         green = self.formatter.get_color_code('green')
         reset = self.formatter.get_color_code('reset')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             print(f"{green}✅ {message}{reset}")
         else:
             print(f"✅ {message}")
@@ -237,7 +361,7 @@ class ConsoleDisplay:
         cyan = self.formatter.get_color_code('cyan')
         reset = self.formatter.get_color_code('reset')
         
-        if config.DISPLAY_CONFIG['USE_COLORS']:
+        if config.DISPLAY_CONFIG.get('USE_COLORS', False):
             print(f"{cyan}ℹ️ {message}{reset}")
         else:
             print(f"ℹ️ {message}")
