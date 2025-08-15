@@ -10,6 +10,7 @@ EMA_HIGHER_TIMEFRAME = {
     "ENABLED": True,  # Activer/désactiver les EMA timeframe supérieur
     "PERIODS": [20, 50, 200],  # Périodes EMA à calculer
     "CUSTOM_TIMEFRAME": "15m",  # Forcer un timeframe spécifique (None = auto) ou mettre "1h", "4h", etc.
+    "SAFETY_MARGIN": 50,  # Marge de sécurité en nombre de bougies (calcul dynamique)
     "AUTO_SUGGESTIONS": {  # Suggestions automatiques de timeframes
         "1m": "5m",
         "5m": "15m",

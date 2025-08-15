@@ -26,7 +26,6 @@ class EMA:
         
         # Calculer EMA avec pandas
         ema = price_series.ewm(span=period, adjust=adjust).mean()
-        
         return ema
     
     @staticmethod

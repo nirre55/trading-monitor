@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from .binance_client import BinanceClient
 from typing import Dict, Optional, Union, Any
+import config
 
 class TimeframeManager:
     """Gestionnaire des données multi-timeframes"""
@@ -14,6 +15,8 @@ class TimeframeManager:
         """Initialise le gestionnaire"""
         self.binance_client = BinanceClient()
         self.timeframe_data = {}  # Cache des données par timeframe
+        # Récupérer la marge de sécurité depuis la config ou utiliser 50 par défaut
+        self.safety_margin = self._get_safety_margin_from_config()
         self.timeframe_hierarchy = {
             '1m': 1,
             '3m': 3,
@@ -133,8 +136,9 @@ class TimeframeManager:
         
         # Vérifier si on a les données en cache
         if cache_key not in self.timeframe_data:
-            # Charger les données si pas en cache
-            self.load_timeframe_data(symbol, higher_timeframe, 50)
+            # Charger les données si pas en cache avec calcul dynamique
+            required_candles = self.calculate_required_candles(higher_timeframe)
+            self.load_timeframe_data(symbol, higher_timeframe, required_candles)
         
         if cache_key not in self.timeframe_data:
             return None
@@ -204,8 +208,9 @@ class TimeframeManager:
         
         # Vérifier si on a besoin de mettre à jour
         if cache_key not in self.timeframe_data:
-            # Pas de données, charger
-            return self.load_timeframe_data(symbol, higher_timeframe, 50) is not None
+            # Pas de données, charger avec calcul dynamique
+            required_candles = self.calculate_required_candles(higher_timeframe)
+            return self.load_timeframe_data(symbol, higher_timeframe, required_candles) is not None
         
         df = self.timeframe_data[cache_key]
         if df.empty:
@@ -223,7 +228,8 @@ class TimeframeManager:
         
         if time_diff > reload_threshold:
             print(f"🔄 Mise à jour données {higher_timeframe} (dernière: {latest_close_time})")
-            return self.load_timeframe_data(symbol, higher_timeframe, 50) is not None
+            required_candles = self.calculate_required_candles(higher_timeframe)
+            return self.load_timeframe_data(symbol, higher_timeframe, required_candles) is not None
         
         return True
     
@@ -257,3 +263,64 @@ class TimeframeManager:
     def get_timeframe_minutes(self, timeframe):
         """Retourne le nombre de minutes pour un timeframe"""
         return self.timeframe_hierarchy.get(timeframe, 60)
+    
+    def calculate_required_candles(self, timeframe=None):
+        """
+        Calcule dynamiquement le nombre de bougies nécessaires
+        en fonction des périodes EMA configurées
+        
+        Args:
+            timeframe: Timeframe spécifique (optionnel)
+            
+        Returns:
+            int: Nombre de bougies à charger
+        """
+        # Récupérer les périodes EMA configurées
+        ema_periods = []
+        if hasattr(config, 'EMA_HIGHER_TIMEFRAME') and config.EMA_HIGHER_TIMEFRAME.get('ENABLED', False):
+            ema_periods = config.EMA_HIGHER_TIMEFRAME.get('PERIODS', [])
+        
+        # Récupérer aussi les périodes RSI pour comparaison
+        rsi_periods = getattr(config, 'RSI_PERIODS', [])
+        
+        # Trouver la période maximale
+        all_periods = ema_periods + rsi_periods
+        max_period = max(all_periods) if all_periods else 50
+        
+        # Calculer le nombre de bougies nécessaires avec marge de sécurité
+        required_candles = max_period + self.safety_margin
+        
+        # Minimum absolu
+        min_candles = 100
+        required_candles = max(required_candles, min_candles)
+        
+        print(f"📊 Calcul dynamique pour {timeframe or 'timeframe supérieur'}:")
+        print(f"   - Périodes EMA: {ema_periods}")
+        print(f"   - Périodes RSI: {rsi_periods}")
+        print(f"   - Période max: {max_period}")
+        print(f"   - Marge sécurité: {self.safety_margin}")
+        print(f"   - Bougies à charger: {required_candles}")
+        
+        return required_candles
+    
+    def set_safety_margin(self, margin):
+        """
+        Configure la marge de sécurité
+        
+        Args:
+            margin: Nombre de bougies de marge
+        """
+        self.safety_margin = max(10, margin)  # Minimum 10
+        print(f"🔧 Marge de sécurité configurée: {self.safety_margin} bougies")
+    
+    def _get_safety_margin_from_config(self):
+        """
+        Récupère la marge de sécurité depuis la configuration
+        
+        Returns:
+            int: Marge de sécurité configurée ou 50 par défaut
+        """
+        if hasattr(config, 'EMA_HIGHER_TIMEFRAME') and isinstance(config.EMA_HIGHER_TIMEFRAME, dict):
+            margin = config.EMA_HIGHER_TIMEFRAME.get('SAFETY_MARGIN', 50)
+            return max(10, margin)  # Minimum 10
+        return 50  # Valeur par défaut
