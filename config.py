@@ -23,6 +23,14 @@ EMA_HIGHER_TIMEFRAME = {
 # Configuration WebSocket
 WEBSOCKET_URL = "wss://stream.binance.com:9443/ws/"
 
+# Configuration de reconnexion automatique
+RECONNECTION_CONFIG = {
+    "ENABLED": True,  # Activer/désactiver la reconnexion automatique
+    "MAX_ATTEMPTS": 10,  # Nombre maximum de tentatives de reconnexion
+    "DELAY_SECONDS": 30,  # Délai entre les tentatives (en secondes)
+    "TIMEOUT_SECONDS": 3600,  # Timeout pour considérer la connexion comme perdue
+}
+
 # Nombre de bougies historiques pour démarrage
 INITIAL_KLINES_LIMIT = 500
 

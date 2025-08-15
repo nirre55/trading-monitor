@@ -89,7 +89,12 @@ class CandleMonitor:
                 self.display.clear_console()
                 self.display.display_header(config.SYMBOL, config.TIMEFRAME)
             
-            self.display.display_indicators(indicators_data)
+            # Obtenir le statut de la connexion si disponible
+            connection_status = None
+            if self.ws_handler:
+                connection_status = self.ws_handler.get_connection_status()
+            
+            self.display.display_indicators(indicators_data, connection_status)
             
         except Exception as e:
             self.display.display_error(f"Erreur calcul indicateurs: {e}")
@@ -130,7 +135,10 @@ class CandleMonitor:
             self.display.display_error("Impossible de se connecter au WebSocket")
             return False
         
-        self.display.display_success("WebSocket connecté")
+        # Démarrer le monitoring de santé de la connexion
+        self.ws_handler.start_health_monitor()
+        
+        self.display.display_success("WebSocket connecté avec monitoring automatique")
         return True
     
     def run(self):

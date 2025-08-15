@@ -39,22 +39,39 @@ class ConsoleDisplay:
         print(title)
         print(config.SYMBOLS['SEPARATOR'])
     
-    def display_indicators(self, indicators_data):
+    def display_indicators(self, indicators_data, connection_status=None):
         """
         Affiche tous les indicateurs calculés
         
         Args:
             indicators_data: Données des indicateurs calculés
+            connection_status: Statut de la connexion WebSocket (optionnel)
         """
         if not indicators_data['has_data']:
             message = indicators_data.get('message', 'Données insuffisantes') if indicators_data else 'Données insuffisantes'
             print(f"⚠️ {message}")
             return
         
-        # Timestamp si configuré
+        # Timestamp et statut de connexion si configuré
         if config.DISPLAY_CONFIG['SHOW_TIMESTAMP']:
             timestamp = datetime.now().strftime("%H:%M:%S")
-            print(f"⏰ Mise à jour: {timestamp}")
+            status_text = ""
+            
+            if connection_status:
+                if connection_status.get('is_connected', False):
+                    since_last = connection_status.get('seconds_since_last_message', 0)
+                    if since_last < 30:
+                        status_text = " 🟢 Connecté"
+                    else:
+                        status_text = f" 🟡 Dernière donnée il y a {since_last:.0f}s"
+                else:
+                    attempts = connection_status.get('reconnect_attempts', 0)
+                    if attempts > 0:
+                        status_text = f" 🔄 Reconnexion (#{attempts})"
+                    else:
+                        status_text = " 🔴 Déconnecté"
+            
+            print(f"⏰ Mise à jour: {timestamp}{status_text}")
             print()
         
         # Affichage des bougies
