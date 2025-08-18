@@ -1,9 +1,9 @@
 # Configuration principale
-SYMBOL = "BTCUSDT"  # Symbole à monitorer
+SYMBOL = "BTCUSDC"  # Symbole à monitorer (Futures: BTCUSDT, ETHUSDT, etc.)
 TIMEFRAME = "1m"  # Timeframe (1m, 3m, 5m, 15m, 30m, 1h, etc.)
 
 # Périodes RSI à calculer
-RSI_PERIODS = [14, 21]
+RSI_PERIODS = [5, 14, 21]
 
 # NOUVEAU: Configuration EMA sur timeframe supérieur
 EMA_HIGHER_TIMEFRAME = {
@@ -20,8 +20,8 @@ EMA_HIGHER_TIMEFRAME = {
     },
 }
 
-# Configuration WebSocket
-WEBSOCKET_URL = "wss://stream.binance.com:9443/ws/"
+# Configuration WebSocket - FUTURES USDⓈ-M
+WEBSOCKET_URL = "wss://fstream.binance.com/ws/"
 
 # Configuration de reconnexion automatique
 RECONNECTION_CONFIG = {
@@ -55,6 +55,31 @@ COLORS = {
     "BOLD": "\033[1m",  # Gras
 }
 
+# Configuration ATR (Average True Range)
+ATR_CONFIG = {
+    "ENABLED": True,  # Activer/désactiver les calculs ATR
+    "PERIODS": [14, 21],  # Périodes ATR à calculer
+}
+
+# Configuration analyse Volume
+VOLUME_CONFIG = {
+    "ENABLED": True,  # Activer/désactiver l'analyse de volume
+    "LOOKBACK_PERIODS": [5, 10, 20],  # Périodes d'analyse des X dernières bougies
+    "COMPARISON_PERIOD": 20,  # Période pour comparer avec moyenne historique
+}
+
+# Configuration détection de signaux de trading
+SIGNAL_CONFIG = {
+    "ENABLED": True,  # Activer/désactiver la détection de signaux
+    "RSI_OVERSOLD": 30,  # Seuil RSI de survente pour signaux LONG
+    "RSI_OVERBOUGHT": 70,  # Seuil RSI de surachat pour signaux SHORT
+    "RSI_PERIOD": 3,  # Période RSI à utiliser pour les signaux
+    "LOG_SIGNALS": True,  # Enregistrer les signaux dans des fichiers JSON
+    "EMA_CURRENT_PERIOD": 50,  # Période EMA pour timeframe current
+    "EMA_HIGHER_TIMEFRAME_PERIOD": 200,  # Période EMA pour timeframe supérieur
+    "VOLUME_COMPARISON_PERIODS": 20,  # Périodes pour comparaison volume vs moyenne
+}
+
 # Symboles d'affichage
 SYMBOLS = {
     "GREEN_CANDLE": "🟢",
@@ -62,6 +87,12 @@ SYMBOLS = {
     "DOJI_CANDLE": "🟡",
     "HA_INDICATOR": "📊",
     "RSI_INDICATOR": "📈",
+    "ATR_INDICATOR": "🌊",
+    "VOLUME_INDICATOR": "📊",
+    "SIGNAL_LONG": "🚀",
+    "SIGNAL_SHORT": "📉",
+    "SIGNAL_WAITING": "⏳",
+    "SIGNAL_ALERT": "🚨",
     "SEPARATOR": "─" * 50,
 }
 

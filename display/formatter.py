@@ -44,6 +44,26 @@ class DataFormatter:
         return f"{float(rsi_value):.{decimals}f}"
     
     @staticmethod
+    def format_number(number, decimals=0):
+        """
+        Formate un nombre avec séparateurs de milliers
+        
+        Args:
+            number: Nombre à formater
+            decimals: Nombre de décimales
+            
+        Returns:
+            str: Nombre formaté
+        """
+        if number is None or np.isnan(number):
+            return "N/A"
+        
+        if decimals == 0:
+            return f"{int(number):,}"
+        else:
+            return f"{float(number):,.{decimals}f}"
+    
+    @staticmethod
     def format_timestamp(timestamp):
         """
         Formate un timestamp pour affichage

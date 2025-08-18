@@ -122,7 +122,7 @@ class TimeframeManager:
     
     def get_current_higher_timeframe_candle(self, symbol, higher_timeframe, base_candle_time):
         """
-        Récupère la bougie du timeframe supérieur correspondant au moment actuel
+        Récupère la dernière bougie fermée du timeframe supérieur avant ou au moment donné
         
         Args:
             symbol: Symbole
@@ -130,7 +130,7 @@ class TimeframeManager:
             base_candle_time: Timestamp de la bougie de base
             
         Returns:
-            dict: Données de la bougie correspondante ou None
+            dict: Données de la dernière bougie fermée ou None
         """
         cache_key = f"{symbol}_{higher_timeframe}"
         
@@ -144,34 +144,41 @@ class TimeframeManager:
             return None
         
         df = self.timeframe_data[cache_key]
+        if df.empty:
+            return None
         
-        # Trouver la bougie qui contient le timestamp donné
-        for _, row in df.iterrows():
-            if row['open_time'] <= base_candle_time <= row['close_time']:
-                return {
-                    'open_time': row['open_time'],
-                    'close_time': row['close_time'],
-                    'open': row['open'],
-                    'high': row['high'],
-                    'low': row['low'],
-                    'close': row['close'],
-                    'volume': row['volume']
-                }
+        # Trier par timestamp pour être sûr de l'ordre
+        df_sorted = df.sort_values('close_time')
         
-        # Si pas trouvé, prendre la dernière bougie
-        if not df.empty:
-            latest = df.iloc[-1]
+        # Trouver la dernière bougie fermée avant ou au moment donné
+        # Une bougie est fermée si son close_time <= base_candle_time
+        closed_candles = df_sorted[df_sorted['close_time'] <= base_candle_time]
+        
+        if not closed_candles.empty:
+            # Prendre la dernière bougie fermée
+            latest_closed = closed_candles.iloc[-1]
             return {
-                'open_time': latest['open_time'],
-                'close_time': latest['close_time'],
-                'open': latest['open'],
-                'high': latest['high'],
-                'low': latest['low'],
-                'close': latest['close'],
-                'volume': latest['volume']
+                'open_time': latest_closed['open_time'],
+                'close_time': latest_closed['close_time'],
+                'open': latest_closed['open'],
+                'high': latest_closed['high'],
+                'low': latest_closed['low'],
+                'close': latest_closed['close'],
+                'volume': latest_closed['volume']
             }
-        
-        return None
+        else:
+            # Aucune bougie fermée trouvée, prendre la première disponible
+            # (cas où base_candle_time est antérieur à toutes les données)
+            first_candle = df_sorted.iloc[0]
+            return {
+                'open_time': first_candle['open_time'],
+                'close_time': first_candle['close_time'],
+                'open': first_candle['open'],
+                'high': first_candle['high'],
+                'low': first_candle['low'],
+                'close': first_candle['close'],
+                'volume': first_candle['volume']
+            }
     
     def get_timeframe_close_series(self, symbol, timeframe):
         """
@@ -222,12 +229,12 @@ class TimeframeManager:
         # Si la dernière bougie est trop ancienne, recharger
         time_diff = base_candle_time - latest_close_time
         
-        # Recharger si plus de 2 périodes du timeframe supérieur
+        # Recharger si plus d'1 période du timeframe supérieur (plus strict)
         higher_tf_minutes = self.timeframe_hierarchy.get(higher_timeframe, 60)
-        reload_threshold = timedelta(minutes=higher_tf_minutes * 2)
+        reload_threshold = timedelta(minutes=higher_tf_minutes)
         
         if time_diff > reload_threshold:
-            print(f"🔄 Mise à jour données {higher_timeframe} (dernière: {latest_close_time})")
+            print(f"🔄 Mise à jour données {higher_timeframe} (dernière: {latest_close_time}, actuel: {base_candle_time})")
             required_candles = self.calculate_required_candles(higher_timeframe)
             return self.load_timeframe_data(symbol, higher_timeframe, required_candles) is not None
         

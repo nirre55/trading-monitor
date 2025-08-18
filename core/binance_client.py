@@ -10,7 +10,7 @@ class BinanceClient:
     """Client pour interaction avec l'API publique Binance"""
     
     def __init__(self):
-        self.base_url = "https://api.binance.com"
+        self.base_url = "https://fapi.binance.com"  # API Futures USDⓈ-M
     
     def get_historical_klines(self, symbol, interval, limit=100):
         """
@@ -25,7 +25,7 @@ class BinanceClient:
             DataFrame avec colonnes: open_time, open, high, low, close, volume
         """
         try:
-            endpoint = f"{self.base_url}/api/v3/klines"
+            endpoint = f"{self.base_url}/fapi/v1/klines"
             params = {
                 'symbol': symbol,
                 'interval': interval,

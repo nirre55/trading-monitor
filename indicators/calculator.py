@@ -4,6 +4,9 @@ import numpy as np
 from .heikin_ashi import HeikinAshi
 from .rsi import RSI
 from .ema import EMA
+from .atr import ATR
+from .volume import Volume
+from .signal_detector import SignalDetector
 import config
 import sys
 import os
@@ -21,6 +24,9 @@ class IndicatorCalculator:
         self.ha_calculator = HeikinAshi()
         self.rsi_calculator = RSI()
         self.ema_calculator = EMA()
+        self.atr_calculator = ATR()
+        self.volume_analyzer = Volume()
+        self.signal_detector = SignalDetector()
         self.timeframe_manager = TimeframeManager()
         
         # Configuration EMA timeframe supérieur
@@ -28,7 +34,20 @@ class IndicatorCalculator:
         if self.ema_enabled:
             self.higher_timeframe = None  # Sera calculé dynamiquement
             self.ema_periods = getattr(config, 'EMA_HIGHER_TIMEFRAME', {}).get('PERIODS', [20, 50])
-            print(f"✅ EMA timeframe supérieur activé - Périodes: {self.ema_periods}")
+            print(f"EMA timeframe supérieur activé - Périodes: {self.ema_periods}")
+        
+        # Configuration ATR
+        self.atr_enabled = getattr(config, 'ATR_CONFIG', {}).get('ENABLED', True)
+        if self.atr_enabled:
+            self.atr_periods = getattr(config, 'ATR_CONFIG', {}).get('PERIODS', [14])
+            print(f"ATR activé - Périodes: {self.atr_periods}")
+        
+        # Configuration Volume
+        self.volume_enabled = getattr(config, 'VOLUME_CONFIG', {}).get('ENABLED', True)
+        if self.volume_enabled:
+            self.volume_lookback_periods = getattr(config, 'VOLUME_CONFIG', {}).get('LOOKBACK_PERIODS', [5, 10, 20])
+            self.volume_comparison_period = getattr(config, 'VOLUME_CONFIG', {}).get('COMPARISON_PERIOD', 20)
+            print(f"Analyse Volume activée - Périodes: {self.volume_lookback_periods}")
     
     def _ensure_higher_timeframe_data(self, symbol, base_timeframe, current_candle_time):
         """S'assure que les données du timeframe supérieur sont disponibles"""
@@ -72,6 +91,8 @@ class IndicatorCalculator:
                 'normal_rsi': {},
                 'ha_rsi': {},
                 'higher_tf_ema': {},
+                'atr_data': {},
+                'volume_data': {},
                 'has_data': False
             }
         
@@ -86,6 +107,8 @@ class IndicatorCalculator:
                 'normal_rsi': {},
                 'ha_rsi': {},
                 'higher_tf_ema': {},
+                'atr_data': {},
+                'volume_data': {},
                 'has_data': False,
                 'message': f'Pas assez de données: {len(df)}/{min_data_needed}'
             }
@@ -113,7 +136,7 @@ class IndicatorCalculator:
         )
         ha_rsi_latest = self.rsi_calculator.get_latest_values(ha_rsi_dict)
         
-        # 6. NOUVEAU: Calculer EMA sur timeframe supérieur
+        # 6. Calculer EMA sur timeframe supérieur
         higher_tf_ema = {}
         if self.ema_enabled and symbol and base_timeframe and normal_candle:
             try:
@@ -126,12 +149,82 @@ class IndicatorCalculator:
                 print(f"⚠️ Erreur calcul EMA timeframe supérieur: {e}")
                 higher_tf_ema = {}
         
+        # 7. NOUVEAU: Calculer ATR
+        atr_data = {}
+        if self.atr_enabled:
+            try:
+                atr_dict = self.atr_calculator.calculate_multiple(df, self.atr_periods)
+                atr_latest = self.atr_calculator.get_latest_values(atr_dict)
+                
+                # Ajouter des analyses supplémentaires pour l'ATR
+                atr_analysis = {}
+                for atr_name, atr_series in atr_dict.items():
+                    if not atr_series.empty:
+                        atr_value = atr_latest.get(atr_name)
+                        if atr_value is not None:
+                            volatility_level = self.atr_calculator.classify_volatility(
+                                atr_value, atr_series, lookback=20
+                            )
+                            atr_trend = self.atr_calculator.get_atr_trend(atr_series, lookback=5)
+                            atr_analysis[atr_name] = {
+                                'value': atr_value,
+                                'volatility_level': volatility_level,
+                                'trend': atr_trend
+                            }
+                
+                atr_data = {
+                    'values': atr_latest,
+                    'analysis': atr_analysis
+                }
+            except Exception as e:
+                print(f"⚠️ Erreur calcul ATR: {e}")
+                atr_data = {}
+        
+        # 8. NOUVEAU: Analyser Volume
+        volume_data = {}
+        if self.volume_enabled and 'volume' in df.columns:
+            try:
+                # Analyse du volume pour les différentes périodes
+                volume_analysis = self.volume_analyzer.calculate_multiple_volume_analysis(
+                    df, self.volume_lookback_periods, self.volume_comparison_period
+                )
+                volume_data = volume_analysis
+            except Exception as e:
+                print(f"⚠️ Erreur analyse volume: {e}")
+                volume_data = {}
+        
+        # 9. NOUVEAU: Détecter les signaux de trading
+        signal_analysis = {}
+        try:
+            # Préparer les données pour l'analyse des signaux
+            indicators_for_signals = {
+                'normal_candle': normal_candle,
+                'ha_candle': ha_candle,
+                'normal_rsi': normal_rsi_latest,
+                'ha_rsi': ha_rsi_latest,
+                'higher_tf_ema': higher_tf_ema,
+                'atr_data': atr_data,
+                'volume_data': volume_data,
+                'has_data': True
+            }
+            
+            # Analyser les signaux avec timestamp de la bougie actuelle
+            current_time = normal_candle.get('open_time') if normal_candle and normal_candle.get('open_time') else None
+            signal_analysis = self.signal_detector.analyze_signals(indicators_for_signals, current_time)
+            
+        except Exception as e:
+            print(f"⚠️ Erreur analyse signaux: {e}")
+            signal_analysis = {}
+        
         return {
             'normal_candle': normal_candle,
             'ha_candle': ha_candle,
             'normal_rsi': normal_rsi_latest,
             'ha_rsi': ha_rsi_latest,
             'higher_tf_ema': higher_tf_ema,
+            'atr_data': atr_data,
+            'volume_data': volume_data,
+            'signal_analysis': signal_analysis,
             'has_data': True,
             'data_points': len(df)
         }

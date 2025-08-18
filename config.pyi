@@ -15,3 +15,15 @@ LOG_CONFIG: Dict[str, Union[bool, str]]
 
 # EMA Configuration
 EMA_HIGHER_TIMEFRAME: Dict[str, Any]
+
+# RECONNECTION Configuration  
+RECONNECTION_CONFIG: Dict[str, Union[bool, int]]
+
+# ATR Configuration
+ATR_CONFIG: Dict[str, Union[bool, List[int]]]
+
+# Volume Configuration  
+VOLUME_CONFIG: Dict[str, Union[bool, List[int], int]]
+
+# Signal Detection Configuration
+SIGNAL_CONFIG: Dict[str, Union[bool, int]]
