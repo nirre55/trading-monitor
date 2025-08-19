@@ -1,15 +1,15 @@
 # Configuration principale
 SYMBOL = "BTCUSDC"  # Symbole à monitorer (Futures: BTCUSDT, ETHUSDT, etc.)
-TIMEFRAME = "1m"  # Timeframe (1m, 3m, 5m, 15m, 30m, 1h, etc.)
+TIMEFRAME = "5m"  # Timeframe (1m, 3m, 5m, 15m, 30m, 1h, etc.)
 
 # Périodes RSI à calculer
-RSI_PERIODS = [5, 14, 21]
+RSI_PERIODS = [3, 5, 14, 21]
 
 # NOUVEAU: Configuration EMA sur timeframe supérieur
 EMA_HIGHER_TIMEFRAME = {
     "ENABLED": True,  # Activer/désactiver les EMA timeframe supérieur
     "PERIODS": [20, 50, 200],  # Périodes EMA à calculer
-    "CUSTOM_TIMEFRAME": "15m",  # Forcer un timeframe spécifique (None = auto) ou mettre "1h", "4h", etc.
+    "CUSTOM_TIMEFRAME": "1h",  # Forcer un timeframe spécifique (None = auto) ou mettre "1h", "4h", etc.
     "SAFETY_MARGIN": 50,  # Marge de sécurité en nombre de bougies (calcul dynamique)
     "AUTO_SUGGESTIONS": {  # Suggestions automatiques de timeframes
         "1m": "5m",
@@ -73,7 +73,7 @@ SIGNAL_CONFIG = {
     "ENABLED": True,  # Activer/désactiver la détection de signaux
     "RSI_OVERSOLD": 30,  # Seuil RSI de survente pour signaux LONG
     "RSI_OVERBOUGHT": 70,  # Seuil RSI de surachat pour signaux SHORT
-    "RSI_PERIOD": 3,  # Période RSI à utiliser pour les signaux
+    "RSI_PERIOD": 5,  # Période RSI à utiliser pour les signaux
     "LOG_SIGNALS": True,  # Enregistrer les signaux dans des fichiers JSON
     "EMA_CURRENT_PERIOD": 50,  # Période EMA pour timeframe current
     "EMA_HIGHER_TIMEFRAME_PERIOD": 200,  # Période EMA pour timeframe supérieur

@@ -136,7 +136,21 @@ class IndicatorCalculator:
         )
         ha_rsi_latest = self.rsi_calculator.get_latest_values(ha_rsi_dict)
         
-        # 6. Calculer EMA sur timeframe supérieur
+        # 6. Calculer EMA sur timeframe current (pour les signaux)
+        current_tf_ema = {}
+        signal_config = getattr(config, 'SIGNAL_CONFIG', {})
+        if signal_config.get('ENABLED', False):
+            try:
+                ema_current_period = signal_config.get('EMA_CURRENT_PERIOD', 50)
+                current_ema_dict = self.ema_calculator.calculate_multiple(
+                    normal_close_series, [ema_current_period]
+                )
+                current_tf_ema = self.ema_calculator.get_latest_values(current_ema_dict)
+            except Exception as e:
+                print(f"⚠️ Erreur calcul EMA timeframe current: {e}")
+                current_tf_ema = {}
+        
+        # 7. Calculer EMA sur timeframe supérieur
         higher_tf_ema = {}
         if self.ema_enabled and symbol and base_timeframe and normal_candle:
             try:
@@ -149,7 +163,7 @@ class IndicatorCalculator:
                 print(f"⚠️ Erreur calcul EMA timeframe supérieur: {e}")
                 higher_tf_ema = {}
         
-        # 7. NOUVEAU: Calculer ATR
+        # 8. NOUVEAU: Calculer ATR
         atr_data = {}
         if self.atr_enabled:
             try:
@@ -180,7 +194,7 @@ class IndicatorCalculator:
                 print(f"⚠️ Erreur calcul ATR: {e}")
                 atr_data = {}
         
-        # 8. NOUVEAU: Analyser Volume
+        # 9. NOUVEAU: Analyser Volume
         volume_data = {}
         if self.volume_enabled and 'volume' in df.columns:
             try:
@@ -193,7 +207,7 @@ class IndicatorCalculator:
                 print(f"⚠️ Erreur analyse volume: {e}")
                 volume_data = {}
         
-        # 9. NOUVEAU: Détecter les signaux de trading
+        # 10. NOUVEAU: Détecter les signaux de trading
         signal_analysis = {}
         try:
             # Préparer les données pour l'analyse des signaux
@@ -203,6 +217,7 @@ class IndicatorCalculator:
                 'normal_rsi': normal_rsi_latest,
                 'ha_rsi': ha_rsi_latest,
                 'higher_tf_ema': higher_tf_ema,
+                'current_tf_ema': current_tf_ema,  # NOUVEAU: Vraies données EMA current
                 'atr_data': atr_data,
                 'volume_data': volume_data,
                 'has_data': True

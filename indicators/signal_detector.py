@@ -72,20 +72,21 @@ class SignalDetector:
         ha_candle = indicators_data.get('ha_candle')
         normal_rsi = indicators_data.get('normal_rsi', {})
         higher_tf_ema = indicators_data.get('higher_tf_ema', {})
+        current_tf_ema = indicators_data.get('current_tf_ema', {})  # NOUVEAU
         volume_data = indicators_data.get('volume_data', {})
         
         signals_detected = []
         
         # Analyser signal LONG
         long_signal = self._analyze_long_signal(
-            normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_time
+            normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_tf_ema, current_time
         )
         if long_signal:
             signals_detected.append(long_signal)
         
         # Analyser signal SHORT
         short_signal = self._analyze_short_signal(
-            normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_time
+            normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_tf_ema, current_time
         )
         if short_signal:
             signals_detected.append(short_signal)
@@ -98,7 +99,7 @@ class SignalDetector:
             'short_steps': self.short_steps.copy()
         }
     
-    def _analyze_long_signal(self, normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_time):
+    def _analyze_long_signal(self, normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_tf_ema, current_time):
         """Analyse optimisée pour signaux LONG"""
         
         # Vérifications de base
@@ -143,7 +144,7 @@ class SignalDetector:
                 }
                 
                 # Faire toutes les validations
-                validations = self._validate_all_conditions('LONG', normal_candle, ha_candle, higher_tf_ema, volume_data)
+                validations = self._validate_all_conditions('LONG', normal_candle, ha_candle, higher_tf_ema, volume_data, current_tf_ema)
                 
                 signal = self._create_optimized_signal('LONG', self.long_steps, validations)
                 self._reset_long_state()
@@ -151,7 +152,7 @@ class SignalDetector:
         
         return None
     
-    def _analyze_short_signal(self, normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_time):
+    def _analyze_short_signal(self, normal_candle, ha_candle, normal_rsi, higher_tf_ema, volume_data, current_tf_ema, current_time):
         """Analyse optimisée pour signaux SHORT"""
         
         # Vérifications de base
@@ -196,7 +197,7 @@ class SignalDetector:
                 }
                 
                 # Faire toutes les validations
-                validations = self._validate_all_conditions('SHORT', normal_candle, ha_candle, higher_tf_ema, volume_data)
+                validations = self._validate_all_conditions('SHORT', normal_candle, ha_candle, higher_tf_ema, volume_data, current_tf_ema)
                 
                 signal = self._create_optimized_signal('SHORT', self.short_steps, validations)
                 self._reset_short_state()
@@ -204,52 +205,62 @@ class SignalDetector:
         
         return None
     
-    def _validate_all_conditions(self, signal_type, normal_candle, ha_candle, higher_tf_ema, volume_data):
-        """Valide toutes les conditions pour le scoring"""
+    def _validate_all_conditions(self, signal_type, normal_candle, ha_candle, higher_tf_ema, volume_data, current_tf_ema=None):
+        """Valide toutes les conditions pour le scoring en utilisant la dernière bougie fermée"""
         validations = {}
+        
+        # Prix de référence = prix de la dernière bougie fermée (normal candle close)
+        # C'est le prix au moment exact de la confirmation du signal
+        last_closed_price = normal_candle['close']
         
         # 1. Validation EMA timeframe supérieur (période configurable)
         ema_values = higher_tf_ema.get('values', {}) if higher_tf_ema else {}
         ema_key = f'EMA_{self.ema_higher_timeframe_period}'
         ema_higher_tf = ema_values.get(ema_key)
-        current_higher_candle = higher_tf_ema.get('current_candle') if higher_tf_ema else None
-        higher_tf_price = current_higher_candle.get('close') if current_higher_candle else None
         
-        if ema_higher_tf is not None and higher_tf_price is not None:
+        # Pour l'EMA higher timeframe, on utilise aussi le prix de la dernière bougie fermée
+        # car c'est le prix de référence au moment de la confirmation
+        if ema_higher_tf is not None:
             if signal_type == 'LONG':
-                ema_higher_tf_ok = higher_tf_price > ema_higher_tf
+                ema_higher_tf_ok = last_closed_price > ema_higher_tf
             else:  # SHORT
-                ema_higher_tf_ok = higher_tf_price < ema_higher_tf
+                ema_higher_tf_ok = last_closed_price < ema_higher_tf
                 
             validations[f'ema{self.ema_higher_timeframe_period}_higher_tf'] = {
                 'ok': ema_higher_tf_ok,
-                'price': higher_tf_price,
+                'price': last_closed_price,  # Prix de la dernière bougie fermée
                 'ema': ema_higher_tf,
                 'period': self.ema_higher_timeframe_period
             }
         else:
             validations[f'ema{self.ema_higher_timeframe_period}_higher_tf'] = {
                 'ok': False,
-                'price': higher_tf_price,
+                'price': last_closed_price,
                 'ema': ema_higher_tf,
                 'period': self.ema_higher_timeframe_period
             }
         
-        # 2. Validation EMA timeframe current (simulé pour l'instant)
-        # TODO: Calculer réellement l'EMA sur le timeframe current
-        current_price = ha_candle['close']
-        # Pour la demo, utilisons une logique simple basée sur le prix
-        # Dans une vraie implémentation, il faudrait calculer l'EMA réelle
-        ema_current = current_price * 0.995  # Simulation d'une EMA légèrement en dessous
+        # 2. Validation EMA timeframe current - utilise les vraies données EMA
+        ema_current_key = f'EMA_{self.ema_current_period}'
+        ema_current = current_tf_ema.get(ema_current_key) if current_tf_ema else None
         
-        if signal_type == 'LONG':
-            ema_current_ok = current_price > ema_current
-        else:  # SHORT
-            ema_current_ok = current_price < ema_current
+        # Fallback vers l'estimation si pas de vraies données
+        if ema_current is None:
+            ema_current = self._get_current_ema_value(normal_candle, ha_candle)
+        
+        if ema_current is not None:
+            if signal_type == 'LONG':
+                ema_current_ok = last_closed_price > ema_current
+            else:  # SHORT
+                ema_current_ok = last_closed_price < ema_current
+        else:
+            # Pas de données EMA current disponibles
+            ema_current_ok = False
+            ema_current = None
             
         validations[f'ema{self.ema_current_period}_current_tf'] = {
             'ok': ema_current_ok,
-            'price': current_price,
+            'price': last_closed_price,  # Prix de la dernière bougie fermée
             'ema': ema_current,
             'period': self.ema_current_period
         }
@@ -267,6 +278,50 @@ class SignalDetector:
         }
         
         return validations
+    
+    def _get_current_ema_value(self, normal_candle, ha_candle):
+        """
+        Récupère la valeur EMA du timeframe current pour la période configurée
+        
+        Cette méthode devrait idéalement accéder aux données EMA calculées
+        sur le timeframe current, mais pour l'instant utilise une estimation
+        basée sur le prix de la dernière bougie fermée.
+        
+        Args:
+            normal_candle: Données de la bougie normale (dernière fermée)
+            ha_candle: Données de la bougie Heikin Ashi
+            
+        Returns:
+            float: Valeur EMA estimée ou None si non disponible
+        """
+        try:
+            # Récupérer le prix de la dernière bougie fermée
+            last_price = normal_candle['close']
+            
+            # TODO: Intégration avec le système d'indicateurs pour récupérer la vraie EMA
+            # Pour l'instant, nous utilisons une estimation basée sur le prix
+            # Une vraie implémentation nécessiterait de calculer l'EMA sur les données historiques
+            
+            # Estimation simple : EMA généralement en dessous du prix pour tendances haussières
+            # et au-dessus pour tendances baissières
+            # Cette logique sera remplacée par de vraies données EMA dans une version future
+            
+            if self.ema_current_period == 50:
+                # EMA50 estimation (ajustement basé sur volatilité moyenne)
+                ema_adjustment = last_price * 0.005  # 0.5% d'écart approximatif
+                return last_price - ema_adjustment
+            elif self.ema_current_period == 20:
+                # EMA20 suit le prix de plus près
+                ema_adjustment = last_price * 0.002  # 0.2% d'écart approximatif
+                return last_price - ema_adjustment
+            else:
+                # Estimation générique pour autres périodes
+                ema_adjustment = last_price * (0.01 / self.ema_current_period)
+                return last_price - ema_adjustment
+                
+        except Exception as e:
+            print(f"Erreur récupération EMA current: {e}")
+            return None
     
     def _create_optimized_signal(self, signal_type, steps, validations):
         """Crée un signal optimisé avec scoring"""
@@ -292,10 +347,13 @@ class SignalDetector:
         return signal
     
     def _log_signal(self, signal):
-        """Log un signal dans un fichier"""
+        """Log un signal dans un fichier de manière robuste"""
         try:
+            # Nettoyer les données pour assurer la sérialisabilité JSON
+            clean_signal = self._clean_signal_for_json(signal)
+            
             log_entry = {
-                'signal': signal,
+                'signal': clean_signal,
                 'logged_at': datetime.now().isoformat()
             }
             
@@ -305,27 +363,91 @@ class SignalDetector:
             
             # Écrire dans le fichier de log
             log_file = f"logs/signals_{datetime.now().strftime('%Y-%m-%d')}.json"
+            temp_file = log_file + '.tmp'
             
             # Lire les entrées existantes
             existing_logs = []
             if os.path.exists(log_file):
                 try:
                     with open(log_file, 'r', encoding='utf-8') as f:
-                        existing_logs = json.load(f)
-                except:
+                        content = f.read().strip()
+                        if content and content.startswith('['):
+                            existing_logs = json.loads(content)
+                except Exception as read_error:
+                    print(f"Avertissement: Impossible de lire le log existant ({read_error}), nouveau fichier créé")
                     existing_logs = []
             
             # Ajouter la nouvelle entrée
             existing_logs.append(log_entry)
             
-            # Écrire le fichier mis à jour
-            with open(log_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_logs, f, indent=2, ensure_ascii=False)
-            
-            print(f"SIGNAL {signal['type']} DETECTE - {signal['timestamp']} - Log: {log_file}")
+            # Écrire dans un fichier temporaire d'abord (atomic write)
+            try:
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(existing_logs, f, indent=2, ensure_ascii=False, default=str)
+                    f.flush()
+                    os.fsync(f.fileno())  # Force write to disk
+                
+                # Renommer le fichier temporaire (operation atomique sur la plupart des systèmes)
+                if os.path.exists(log_file):
+                    os.replace(temp_file, log_file)
+                else:
+                    os.rename(temp_file, log_file)
+                
+                print(f"SIGNAL {signal['type']} DETECTE - {signal['timestamp']} - Log: {log_file}")
+                
+            except Exception as write_error:
+                # Nettoyer le fichier temporaire en cas d'erreur
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
+                raise write_error
             
         except Exception as e:
             print(f"Erreur lors du logging du signal: {e}")
+            # Essayer un logging de fallback en mode append
+            try:
+                fallback_file = f"logs/signals_fallback_{datetime.now().strftime('%Y-%m-%d')}.txt"
+                with open(fallback_file, 'a', encoding='utf-8') as f:
+                    f.write(f"\n--- Signal {datetime.now().isoformat()} ---\n")
+                    f.write(f"Type: {signal.get('type', 'Unknown')}\n")
+                    f.write(f"Score: {signal.get('score', 'N/A')}\n")
+                    f.write(f"Timestamp: {signal.get('timestamp', 'N/A')}\n")
+                    f.write(f"Error: {e}\n")
+                print(f"Signal sauvegardé en mode fallback: {fallback_file}")
+            except:
+                print("Impossible de sauvegarder le signal, même en mode fallback")
+    
+    def _clean_signal_for_json(self, signal):
+        """Nettoie les données du signal pour assurer la compatibilité JSON"""
+        def clean_value(value):
+            """Nettoie récursivement une valeur pour JSON"""
+            if value is None:
+                return None
+            elif isinstance(value, (str, int, float, bool)):
+                return value
+            elif isinstance(value, dict):
+                return {k: clean_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [clean_value(item) for item in value]
+            elif hasattr(value, 'isoformat'):  # datetime objects
+                return value.isoformat()
+            else:
+                # Convertir tout autre type en string
+                return str(value)
+        
+        try:
+            return clean_value(signal)
+        except Exception as e:
+            print(f"Erreur lors du nettoyage du signal: {e}")
+            # Retourner une version minimale en cas d'erreur
+            return {
+                'type': str(signal.get('type', 'Unknown')),
+                'timestamp': str(signal.get('timestamp', datetime.now().isoformat())),
+                'score': str(signal.get('score', 'N/A')),
+                'error': f"Erreur nettoyage: {e}"
+            }
     
     def _reset_long_state(self):
         """Remet à zéro l'état LONG"""
