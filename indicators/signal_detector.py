@@ -34,9 +34,20 @@ class SignalDetector:
         # Configuration depuis config.py
         signal_config = getattr(config, 'SIGNAL_CONFIG', {})
         self.enabled = signal_config.get('ENABLED', True)
+        
+        # Configuration multi-RSI
+        self.rsi_thresholds = signal_config.get('RSI_THRESHOLDS', {
+            5: {"OVERSOLD": 20, "OVERBOUGHT": 80},
+            14: {"OVERSOLD": 30, "OVERBOUGHT": 70},
+            21: {"OVERSOLD": 40, "OVERBOUGHT": 60}
+        })
+        self.rsi_signal_mode = signal_config.get('RSI_SIGNAL_MODE', 'ANY')  # 'ANY' ou 'ALL'
+        
+        # Configuration fallback (ancienne)
         self.rsi_oversold = signal_config.get('RSI_OVERSOLD', 30)
         self.rsi_overbought = signal_config.get('RSI_OVERBOUGHT', 70)
         self.rsi_period = signal_config.get('RSI_PERIOD', 14)
+        
         self.log_signals = signal_config.get('LOG_SIGNALS', True)
         self.ema_current_period = signal_config.get('EMA_CURRENT_PERIOD', 50)
         self.ema_higher_timeframe_period = signal_config.get('EMA_HIGHER_TIMEFRAME_PERIOD', 200)
@@ -46,8 +57,67 @@ class SignalDetector:
         self.last_validation_time = None
         
         if self.enabled:
-            print(f"Detecteur de signaux optimise - RSI: {self.rsi_oversold}/{self.rsi_overbought} (periode {self.rsi_period}), EMA Current: {self.ema_current_period}, EMA Higher: {self.ema_higher_timeframe_period}")
+            rsi_info = ", ".join([f"RSI{period}: <{thresholds['OVERSOLD']}/>{thresholds['OVERBOUGHT']}" 
+                                for period, thresholds in self.rsi_thresholds.items()])
+            print(f"Detecteur de signaux multi-RSI - Mode: {self.rsi_signal_mode}")
+            print(f"  RSI Seuils: {rsi_info}")
+            print(f"  EMA Current: {self.ema_current_period}, EMA Higher: {self.ema_higher_timeframe_period}")
     
+    def _check_multi_rsi_condition(self, normal_rsi, signal_type):
+        """
+        Vérifie les conditions RSI pour plusieurs périodes
+        
+        Args:
+            normal_rsi: Dictionnaire des RSI calculés
+            signal_type: 'LONG' ou 'SHORT'
+            
+        Returns:
+            dict: Résultat de la vérification multi-RSI
+        """
+        rsi_results = {}
+        valid_rsi_count = 0
+        total_rsi_count = 0
+        
+        for period, thresholds in self.rsi_thresholds.items():
+            rsi_key = f'RSI_{period}'
+            rsi_value = normal_rsi.get(rsi_key)
+            
+            if rsi_value is not None:
+                total_rsi_count += 1
+                
+                if signal_type == 'LONG':
+                    is_valid = rsi_value <= thresholds['OVERSOLD']
+                    condition = 'oversold'
+                    threshold_used = thresholds['OVERSOLD']
+                else:  # SHORT
+                    is_valid = rsi_value >= thresholds['OVERBOUGHT']
+                    condition = 'overbought'
+                    threshold_used = thresholds['OVERBOUGHT']
+                
+                rsi_results[period] = {
+                    'value': rsi_value,
+                    'threshold': threshold_used,
+                    'condition': condition,
+                    'valid': is_valid
+                }
+                
+                if is_valid:
+                    valid_rsi_count += 1
+        
+        # Déterminer si la condition globale est remplie
+        if self.rsi_signal_mode == 'ANY':
+            condition_met = valid_rsi_count > 0
+        else:  # 'ALL'
+            condition_met = valid_rsi_count == total_rsi_count and total_rsi_count > 0
+        
+        return {
+            'condition_met': condition_met,
+            'valid_count': valid_rsi_count,
+            'total_count': total_rsi_count,
+            'mode': self.rsi_signal_mode,
+            'details': rsi_results
+        }
+
     def analyze_signals(self, indicators_data, current_time=None):
         """
         Analyse les indicateurs pour détecter des signaux
@@ -106,31 +176,20 @@ class SignalDetector:
         if not all([normal_candle, ha_candle, normal_rsi]):
             return None
         
-        # RSI spécifique configuré pour les signaux
-        rsi_key = f'RSI_{self.rsi_period}'
-        main_rsi = normal_rsi.get(rsi_key)
-        
-        # Si le RSI configuré n'existe pas, prendre le premier disponible en fallback
-        if main_rsi is None:
-            for rsi_name, rsi_value in normal_rsi.items():
-                if rsi_value is not None:
-                    main_rsi = rsi_value
-                    rsi_key = rsi_name  # Mettre à jour la clé pour le logging
-                    break
-        
-        if main_rsi is None:
-            return None
+        # Vérifier les conditions multi-RSI
+        multi_rsi_check = self._check_multi_rsi_condition(normal_rsi, 'LONG')
         
         # Machine d'état simplifiée pour LONG
         if self.long_state == SignalState.IDLE:
-            # Étape 1: RSI oversold
-            if main_rsi <= self.rsi_oversold:
+            # Étape 1: Multi-RSI oversold
+            if multi_rsi_check['condition_met']:
                 self.long_state = SignalState.RSI_OK
                 self.long_steps['step1_rsi'] = {
                     'timestamp': current_time.isoformat() if current_time else datetime.now().isoformat(),
-                    'value': main_rsi,
-                    'condition': 'oversold',
-                    'rsi_period': rsi_key
+                    'multi_rsi_result': multi_rsi_check,
+                    'valid_rsi_count': multi_rsi_check['valid_count'],
+                    'total_rsi_count': multi_rsi_check['total_count'],
+                    'mode': multi_rsi_check['mode']
                 }
                 
         elif self.long_state == SignalState.RSI_OK:
@@ -159,31 +218,20 @@ class SignalDetector:
         if not all([normal_candle, ha_candle, normal_rsi]):
             return None
         
-        # RSI spécifique configuré pour les signaux
-        rsi_key = f'RSI_{self.rsi_period}'
-        main_rsi = normal_rsi.get(rsi_key)
-        
-        # Si le RSI configuré n'existe pas, prendre le premier disponible en fallback
-        if main_rsi is None:
-            for rsi_name, rsi_value in normal_rsi.items():
-                if rsi_value is not None:
-                    main_rsi = rsi_value
-                    rsi_key = rsi_name  # Mettre à jour la clé pour le logging
-                    break
-        
-        if main_rsi is None:
-            return None
+        # Vérifier les conditions multi-RSI
+        multi_rsi_check = self._check_multi_rsi_condition(normal_rsi, 'SHORT')
         
         # Machine d'état simplifiée pour SHORT
         if self.short_state == SignalState.IDLE:
-            # Étape 1: RSI overbought
-            if main_rsi >= self.rsi_overbought:
+            # Étape 1: Multi-RSI overbought
+            if multi_rsi_check['condition_met']:
                 self.short_state = SignalState.RSI_OK
                 self.short_steps['step1_rsi'] = {
                     'timestamp': current_time.isoformat() if current_time else datetime.now().isoformat(),
-                    'value': main_rsi,
-                    'condition': 'overbought',
-                    'rsi_period': rsi_key
+                    'multi_rsi_result': multi_rsi_check,
+                    'valid_rsi_count': multi_rsi_check['valid_count'],
+                    'total_rsi_count': multi_rsi_check['total_count'],
+                    'mode': multi_rsi_check['mode']
                 }
                 
         elif self.short_state == SignalState.RSI_OK:

@@ -27,3 +27,6 @@ VOLUME_CONFIG: Dict[str, Union[bool, List[int], int]]
 
 # Signal Detection Configuration
 SIGNAL_CONFIG: Dict[str, Union[bool, int]]
+
+# Backtest Configuration
+BACKTEST_CONFIG: Dict[str, Union[bool, int, float]]
