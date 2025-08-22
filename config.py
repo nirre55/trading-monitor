@@ -1,6 +1,6 @@
 # Configuration principale
 SYMBOL = "BTCUSDC"  # Symbole à monitorer (Futures: BTCUSDT, ETHUSDT, etc.)
-TIMEFRAME = "1h"  # Timeframe (1m, 3m, 5m, 15m, 30m, 1h, etc.)
+TIMEFRAME = "5m"  # Timeframe (1m, 3m, 5m, 15m, 30m, 1h, etc.)
 
 # Périodes RSI à calculer
 RSI_PERIODS = [3, 5, 14, 21]
@@ -9,7 +9,7 @@ RSI_PERIODS = [3, 5, 14, 21]
 EMA_HIGHER_TIMEFRAME = {
     "ENABLED": True,  # Activer/désactiver les EMA timeframe supérieur
     "PERIODS": [20, 50, 200],  # Périodes EMA à calculer
-    "CUSTOM_TIMEFRAME": "4h",  # Forcer un timeframe spécifique (None = auto) ou mettre "1h", "4h", etc.
+    "CUSTOM_TIMEFRAME": "1h",  # Forcer un timeframe spécifique (None = auto) ou mettre "1h", "4h", etc.
     "SAFETY_MARGIN": 50,  # Marge de sécurité en nombre de bougies (calcul dynamique)
     "AUTO_SUGGESTIONS": {  # Suggestions automatiques de timeframes
         "1m": "5m",
@@ -83,7 +83,7 @@ SIGNAL_CONFIG = {
     "RSI_OVERBOUGHT": 70,  # DEPRECATED - utilisé comme fallback
     "RSI_PERIOD": 21,  # DEPRECATED - utilisé comme fallback
     "LOG_SIGNALS": True,  # Enregistrer les signaux dans des fichiers JSON
-    "EMA_CURRENT_PERIOD": 50,  # Période EMA pour timeframe current
+    "EMA_CURRENT_PERIOD": 500,  # Période EMA pour timeframe current
     "EMA_HIGHER_TIMEFRAME_PERIOD": 200,  # Période EMA pour timeframe supérieur
     "VOLUME_COMPARISON_PERIODS": 20,  # Périodes pour comparaison volume vs moyenne
 }
@@ -114,7 +114,7 @@ LOG_CONFIG = {
 # Configuration backtest
 BACKTEST_CONFIG = {
     "ENABLED": True,  # Activer/désactiver les paramètres de backtest
-    "RISK_PER_TRADE": 0.02,  # Risque par trade (0.02 = 2% du capital)
+    "RISK_PER_TRADE": 0.005,  # Risque par trade (0.02 = 2% du capital)
     # Méthode de calcul SL/TP: "ATR" ou "SWING_LEVELS"
     "SL_METHOD": "SWING_LEVELS",  # "ATR" ou "SWING_LEVELS"
     # Configuration ATR (si SL_METHOD = "ATR")
@@ -123,10 +123,13 @@ BACKTEST_CONFIG = {
     "ATR_PERIOD_FOR_STOPS": 14,  # Période ATR à utiliser pour SL/TP (doit être dans ATR_CONFIG.PERIODS)
     # Configuration Swing Levels (si SL_METHOD = "SWING_LEVELS")
     "SWING_LOOKBACK_CANDLES": 5,  # Nombre de bougies précédentes à analyser
-    "SWING_OFFSET_PCT": 0.1,  # Offset en % (0.1 = 0.1%)
-    "SWING_TP_RATIO": 2.0,  # Multiplicateur pour TP (ex: 5 = TP à 5x la distance SL)
+    "SWING_OFFSET_PCT": 0.01,  # Offset en % (0.1 = 0.1%)
+    "SWING_TP_RATIO": 2.0,  # Multiplicateur pour TP (ex: 2 = TP à 2x la distance SL)
+    # Configuration Take Profit : "RATIO" (basé sur SL), "FIXED_PCT" (% du prix d'entrée)
+    "TP_METHOD": "FIXED_PCT",  # "RATIO" ou "FIXED_PCT"
+    "FIXED_TP_PCT": 0.2,  # TP fixe en % (1.5 = 1.5% du prix d'entrée)
     # Paramètres communs
-    "MIN_RISK_REWARD_RATIO": 1,  # Ratio risque/récompense minimum pour prendre un trade
+    "MIN_RISK_REWARD_RATIO": 0.05,  # Ratio risque/récompense minimum pour prendre un trade
     "MAX_POSITION_SIZE_PCT": 0.95,  # Taille de position maximale (95% du capital)
     "USE_TRAILING_STOP": False,  # Utiliser un trailing stop basé sur ATR
     "TRAILING_STOP_ATR_MULTIPLIER": 1.5,  # Multiplicateur ATR pour trailing stop

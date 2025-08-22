@@ -54,6 +54,10 @@ class SignalBacktester:
         self.swing_offset_pct = backtest_config.get('SWING_OFFSET_PCT', 0.1)
         self.swing_tp_ratio = backtest_config.get('SWING_TP_RATIO', 5.0)
         
+        # Configuration Take Profit
+        self.tp_method = backtest_config.get('TP_METHOD', 'RATIO')
+        self.fixed_tp_pct = backtest_config.get('FIXED_TP_PCT', 1.5)
+        
         # Paramètres communs
         self.min_risk_reward_ratio = backtest_config.get('MIN_RISK_REWARD_RATIO', 1.5)
         self.max_position_size_pct = backtest_config.get('MAX_POSITION_SIZE_PCT', 0.95)
@@ -69,9 +73,15 @@ class SignalBacktester:
         if not self.silent:
             print(f"Backtester initialise - Capital: {initial_balance} USDT, Risque: {self.risk_per_trade*100}%")
             if self.sl_method == 'ATR':
-                print(f"Methode SL/TP: ATR - SL: {self.sl_atr_multiplier}x ATR{self.atr_period_for_stops}, TP: {self.tp_atr_multiplier}x ATR{self.atr_period_for_stops}")
-            else:
-                print(f"Methode SL/TP: SWING_LEVELS - Lookback: {self.swing_lookback_candles} bougies, Offset: {self.swing_offset_pct}%, TP Ratio: {self.swing_tp_ratio}x")
+                if self.tp_method == 'FIXED_PCT':
+                    print(f"Methode SL: ATR{self.atr_period_for_stops} ({self.sl_atr_multiplier}x), TP: Fixe {self.fixed_tp_pct}%")
+                else:
+                    print(f"Methode SL/TP: ATR - SL: {self.sl_atr_multiplier}x ATR{self.atr_period_for_stops}, TP: {self.tp_atr_multiplier}x ATR{self.atr_period_for_stops}")
+            else:  # SWING_LEVELS
+                if self.tp_method == 'FIXED_PCT':
+                    print(f"Methode SL: SWING_LEVELS (Lookback: {self.swing_lookback_candles}, Offset: {self.swing_offset_pct}%), TP: Fixe {self.fixed_tp_pct}%")
+                else:
+                    print(f"Methode SL/TP: SWING_LEVELS - Lookback: {self.swing_lookback_candles} bougies, Offset: {self.swing_offset_pct}%, TP Ratio: {self.swing_tp_ratio}x")
     
     def reset_results(self):
         """Remet à zéro les résultats"""
@@ -231,18 +241,24 @@ class SignalBacktester:
             swing_level = lookback_data['low'].min()
             stop_loss_price = swing_level * (1 - self.swing_offset_pct / 100)
             
-            # TP = prix_entrée + (distance_SL * ratio)
-            sl_distance = abs(current_price - stop_loss_price)
-            take_profit_price = current_price + (sl_distance * self.swing_tp_ratio)
+            # TP selon la méthode configurée
+            if self.tp_method == 'FIXED_PCT':
+                take_profit_price = current_price * (1 + self.fixed_tp_pct / 100)
+            else:  # RATIO
+                sl_distance = abs(current_price - stop_loss_price)
+                take_profit_price = current_price + (sl_distance * self.swing_tp_ratio)
             
         else:  # SHORT
             # Pour SHORT: SL = plus haut HIGH des X bougies + offset%
             swing_level = lookback_data['high'].max()
             stop_loss_price = swing_level * (1 + self.swing_offset_pct / 100)
             
-            # TP = prix_entrée - (distance_SL * ratio)
-            sl_distance = abs(stop_loss_price - current_price)
-            take_profit_price = current_price - (sl_distance * self.swing_tp_ratio)
+            # TP selon la méthode configurée
+            if self.tp_method == 'FIXED_PCT':
+                take_profit_price = current_price * (1 - self.fixed_tp_pct / 100)
+            else:  # RATIO
+                sl_distance = abs(stop_loss_price - current_price)
+                take_profit_price = current_price - (sl_distance * self.swing_tp_ratio)
         
         return stop_loss_price, take_profit_price, swing_level
 
@@ -281,14 +297,23 @@ class SignalBacktester:
             
             if signal['type'] == 'LONG':
                 stop_loss_price = current_price - sl_distance
-                take_profit_price = current_price + tp_distance
+                if self.tp_method == 'FIXED_PCT':
+                    take_profit_price = current_price * (1 + self.fixed_tp_pct / 100)
+                else:  # RATIO (ATR)
+                    take_profit_price = current_price + tp_distance
             elif signal['type'] == 'SHORT':
                 stop_loss_price = current_price + sl_distance
-                take_profit_price = current_price - tp_distance
+                if self.tp_method == 'FIXED_PCT':
+                    take_profit_price = current_price * (1 - self.fixed_tp_pct / 100)
+                else:  # RATIO (ATR)
+                    take_profit_price = current_price - tp_distance
             else:
                 return
             
-            calculation_info = f"ATR{self.atr_period_for_stops}: {current_atr:.2f}"
+            if self.tp_method == 'FIXED_PCT':
+                calculation_info = f"ATR{self.atr_period_for_stops}: {current_atr:.2f}, TP Fixe: {self.fixed_tp_pct}%"
+            else:
+                calculation_info = f"ATR{self.atr_period_for_stops}: {current_atr:.2f}, TP Ratio: {self.tp_atr_multiplier}x"
             
         else:  # SWING_LEVELS
             # Méthode Swing Levels
@@ -304,7 +329,10 @@ class SignalBacktester:
                 print(f"Impossible de calculer swing levels pour signal {signal['type']}, signal ignore")
                 return
             
-            calculation_info = f"Swing level: {swing_level:.2f}"
+            if self.tp_method == 'FIXED_PCT':
+                calculation_info = f"Swing level: {swing_level:.2f}, TP Fixe: {self.fixed_tp_pct}%"
+            else:
+                calculation_info = f"Swing level: {swing_level:.2f}, TP Ratio: {self.swing_tp_ratio}x"
         
         # Vérifier le ratio risque/récompense
         actual_risk = abs(current_price - stop_loss_price)
