@@ -23,7 +23,7 @@ class SignalBacktester:
     Réutilise exactement la même logique que le système en temps réel
     """
     
-    def __init__(self, initial_balance: float = 10000, risk_per_trade: float = None, silent: bool = False):
+    def __init__(self, initial_balance: float = 10000, risk_per_trade: Optional[float] = None, silent: bool = False):
         """
         Initialise le backtester
         
@@ -218,7 +218,7 @@ class SignalBacktester:
             'statistics': self.stats
         }
     
-    def _calculate_swing_levels_sl_tp(self, signal_type: str, current_price: float, historical_data: pd.DataFrame):
+    def _calculate_swing_levels_sl_tp(self, signal_type: str, current_price: float, historical_data: pd.DataFrame) -> Tuple[Optional[float], Optional[float], Optional[float]]:
         """
         Calcule SL/TP basés sur les swing levels (high/low des X dernières bougies)
         
@@ -263,7 +263,7 @@ class SignalBacktester:
         return stop_loss_price, take_profit_price, swing_level
 
     def _process_signal(self, signal: Dict, current_price: float, current_time: pd.Timestamp, 
-                       indicators: Dict, historical_data: pd.DataFrame = None):
+                       indicators: Dict, historical_data: Optional[pd.DataFrame] = None):
         """Traite un nouveau signal détecté en utilisant la méthode SL/TP configurée"""
         
         # Enregistrer le signal

@@ -16,6 +16,12 @@ python main.py
 
 # Project setup and dependency verification  
 python setup.py
+
+# Backtest system
+python backtest_runner.py download --symbol BTCUSDC --interval 5m --days 30
+python backtest_runner.py backtest --symbol BTCUSDC --interval 5m --export-csv
+python backtest_runner.py list-data
+python backtest_runner.py list-results
 ```
 
 ### Dependencies
@@ -55,6 +61,15 @@ The application follows a clear pipeline: Historical data initialization → Web
 - **IndicatorCalculator** (`indicators/calculator.py:16`): Orchestrates all indicator calculations with multi-timeframe support
 - **WebSocketHandler** (`core/websocket_handler.py:11`): Real-time data streaming with health monitoring and auto-reconnection
 
+### Backtest System Architecture
+
+The backtest system provides complete reuse of the main system components for perfect consistency between live and historical analysis:
+
+- **BacktestRunner** (`backtest_runner.py`): CLI interface with data download, backtest execution, and export capabilities
+- **SignalBacktester** (`backtest/signal_backtester.py:20`): Core backtest engine with risk management and position sizing
+- **DataDownloader** (`backtest/data_downloader.py`): Historical data retrieval with automatic file management
+- **ResultsDisplay** (`backtest/results_display.py`): Performance analysis and reporting with consecutive streak calculations
+
 ### Configuration System
 
 The `config.py` uses nested dictionaries for complex features:
@@ -64,6 +79,7 @@ The `config.py` uses nested dictionaries for complex features:
 - **VOLUME_CONFIG**: Volume analysis with lookback periods and comparison settings
 - **RECONNECTION_CONFIG**: WebSocket reconnection with configurable attempts, delays, and timeouts
 - **DISPLAY_CONFIG**: Console output customization with color control and formatting options
+- **BACKTEST_CONFIG**: Risk management with stop loss methods (ATR/SWING_LEVELS), take profit strategies, and position sizing parameters
 
 ## Key Implementation Details
 
@@ -101,6 +117,22 @@ The `Volume` class (`indicators/volume.py`) provides comprehensive volume analys
 - Comparison with historical averages and volume level classification
 - Detection of exceptional volume candles and trend analysis
 - Support for multiple lookback periods (configurable via `VOLUME_CONFIG`)
+
+### Backtest Risk Management
+
+The backtest system implements sophisticated risk management with two stop-loss calculation methods:
+
+- **ATR Method**: Stop loss calculated as current_price ± (ATR_period × multiplier), with configurable periods and multipliers
+- **Swing Levels Method**: Stop loss based on recent high/low levels with configurable lookback periods and offset percentages
+- **Take Profit Strategies**: Either fixed percentage or ratio-based relative to stop loss distance
+- **Position Sizing**: Risk-based position sizing with maximum position limits and effective risk calculation
+
+### Signal Detection and Validation
+
+The `SignalDetector` (`indicators/signal_detector.py`) implements a state machine pattern with two-step validation:
+1. **RSI Condition**: Multi-period RSI analysis with "ANY" or "ALL" threshold modes
+2. **Heikin Ashi Confirmation**: Candlestick pattern validation for signal confirmation
+3. **Scoring System**: 5-point scale with EMA trend, volume, and ATR validations
 
 ## Extension Points
 
